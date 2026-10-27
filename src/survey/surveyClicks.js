@@ -27,13 +27,20 @@ export function createSurveyClickHandler({
   handler.setInputAction((event) => {
     if (!isActive() || !isPointerFree()) return;
     const position = event.position;
-    let picked;
+    // Stations often share a spot (a river gage and a rain gage); of the
+    // points under the click, show the one with the most to say.
+    let picked = [];
     try {
-      picked = viewer.scene.pick(position);
+      picked = viewer.scene.drillPick(position, 8) || [];
     } catch {
-      picked = null;
+      picked = [];
     }
-    const info = infoOf(picked?.id);
+    const weight = (i) =>
+      (i?.site?.readings?.length || 0) + (i?.site?.programs?.length || 0);
+    const info = picked
+      .map((p) => infoOf(p?.id))
+      .filter(Boolean)
+      .sort((a, b) => weight(b) - weight(a))[0];
     if (info) {
       onPoint(info);
       return;
