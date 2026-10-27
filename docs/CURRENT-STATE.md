@@ -131,9 +131,30 @@ only an ellipsoid it reports "Terrain not loaded — add a Cesium ion token for
 elevation". Overlays are WMS imagery layers: NRCS SSURGO and MRLC NLCD 2021
 direct (CORS `*`), FEMA NFHL (layer `28`) and USFWS NWI (layer `0`) through
 `/api/survey-wms/<id>` (`server/providers/surveyWms.js`, GetMap only, fixed
-upstream per id, image responses only, 6-hour memory cache). The drone planner
-(`flightPlan.js`) and the report (`report.js`) are pure and unit-tested. The
-boundary is not persisted or shared.
+upstream per id, image responses only, 6-hour memory cache capped at 48 MB).
+The drone planner (`flightPlan.js`) and the report (`report.js`) are pure and
+unit-tested. The boundary is not persisted or shared.
+
+Since the same day, FEMA, USFWS and NHD draw from their ArcGIS REST `export`
+endpoints straight from the browser (FEMA's WMS answered 400, and FEMA refused
+the proxy from a cloud host); FEMA and USFWS fall back to the WMS route after
+four failed tiles with none loaded. `layerCatalog.js` adds reference layers
+(Esri places with a CARTO fallback, TIGERweb lines, the graticule and 1-mile
+grid drawn into canvas tiles by `graticuleProvider.js`, Esri roads),
+topography (Esri hillshade, USGS contours, `scene.verticalExaggeration` 3 on
+the keyless terrain), USGS Water Data stations and EPA EMEF sites
+(`pointSources.js`, entities with `gevSurveyInfo`), worldwide layers
+(Sentinel-2 land cover 2024, SoilGrids clay, JRC surface water) and Esri
+Wayback with a split compare. `surveyLayers.js` stacks them in
+`SURVEY_IMAGERY_ORDER`; places, lines and grid turn on with the survey and
+everything turns off when it closes. Clicks (`surveyClicks.js`, only while
+the pointer is free) show stations, EPA sites, SSURGO soils (Soil Data Access,
+browser POST), SoilGrids soils or the ground height in `infoCard.js`.
+`guidedFlights.js` holds the Louisiana and Africa – Ghana flights (six shots,
+3 s flight, 3 s hold); `flightPlayer.js` starts the camera in the Play click
+and records `metrics.flightCalledMs`/`firstMotionMs`; `?tour=louisiana|ghana`
+opens the survey and plays. Every source is keyless and CORS-enabled, so
+`vite preview` on a public host needs no server route for any of it.
 
 ## God's Eye View in conversations — October 2, 2026
 
