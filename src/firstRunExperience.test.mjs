@@ -1111,3 +1111,17 @@ test('every layer a mission drives is already in the shipped set_layer_visibilit
     );
   }
 });
+
+test('a guided-flight link skips the launcher, in the query or the hash', () => {
+  for (const location of [
+    { search: '?tour=ghana' },
+    { search: '', hash: '#tour=louisiana' },
+    { search: '?tour=ghana&welcome=1' },
+  ])
+    assert.equal(shouldShowFirstRun({ ...fresh(), location }), false);
+  // Without a tour the launcher still shows on a fresh session.
+  assert.equal(
+    shouldShowFirstRun({ ...fresh(), location: { search: '?x=1' } }),
+    true,
+  );
+});

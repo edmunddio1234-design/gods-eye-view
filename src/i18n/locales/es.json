@@ -3208,10 +3208,6 @@
   "USDA soil map units across the sample site; click the ground to read the soil.": "Unidades de suelo del USDA en el sitio de ejemplo; haga clic en el terreno para leer el suelo.",
   "Topography: hillshade, USGS contours in feet and 3D terrain raised ×3 show how flat this land is.": "Topografía: el sombreado, las curvas de nivel del USGS en pies y el terreno 3D elevado ×3 muestran lo llano que es este terreno.",
   "Africa – Ghana": "África – Ghana",
-  "Africa from space, on Esri satellite imagery.": "África desde el espacio, con imágenes de satélite de Esri.",
-  "West Africa and the Gulf of Guinea.": "África occidental y el golfo de Guinea.",
-  "Ghana, with country borders and place names from Esri’s world reference map.": "Ghana, con fronteras y nombres de lugares del mapa de referencia mundial de Esri.",
-  "Accra, Ghana’s capital, on the Gulf of Guinea coast.": "Acra, la capital de Ghana, en la costa del golfo de Guinea.",
   "Berekum, Bono Region, with roads and 2024 land cover (red is built-up land). 2S Global research looked at how roads and land cover shape urban heat here.": "Berekum, región de Bono, con carreteras y la cobertura del suelo de 2024 (rojo: suelo urbanizado). Una investigación de 2S Global estudió aquí cómo las carreteras y la cobertura del suelo influyen en el calor urbano.",
   "Read the research": "Leer la investigación",
   "Berekum topography: Esri hillshade and global 3D terrain raised ×3 (US contour lines do not cover Ghana).": "Topografía de Berekum: sombreado de Esri y terreno 3D mundial elevado ×3 (las curvas de nivel de EE. UU. no cubren Ghana).",
@@ -3351,5 +3347,9 @@
   "Open SoilGrids": "Abrir SoilGrids",
   "Ground height": "Altura del terreno",
   "Above mean sea level (EGM96), from the 3D terrain model, at {point}.": "Sobre el nivel medio del mar (EGM96), según el modelo de terreno 3D, en {point}.",
-  "Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.": "Altura elipsoidal (WGS-84) según el modelo de terreno 3D, en {point}."
+  "Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.": "Altura elipsoidal (WGS-84) según el modelo de terreno 3D, en {point}.",
+  "Starting the guided flight...": "Iniciando el vuelo guiado...",
+  "Ghana in West Africa, with country borders and place names from Esri’s world reference map.": "Ghana, en África occidental, con fronteras y nombres de lugares del mapa de referencia mundial de Esri.",
+  "Accra, Ghana’s capital, on the Gulf of Guinea coast, at city scale on Esri imagery.": "Acra, la capital de Ghana, en la costa del golfo de Guinea, a escala de ciudad con imágenes de Esri.",
+  "Kumasi, Ghana’s second city, in the Ashanti Region.": "Kumasi, la segunda ciudad de Ghana, en la región Ashanti."
 }

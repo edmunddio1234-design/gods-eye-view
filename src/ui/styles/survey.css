@@ -537,6 +537,17 @@ body.gev-site-survey
   cursor: default;
 }
 
+/* The voice card floats over the caption bar's strip: it fades away during
+   a flight and comes back when the flight closes. */
+#gev-voice-control {
+  transition: opacity 0.25s ease;
+}
+body.survey-flight-showing #gev-voice-control {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media (max-width: 720px) {
   .survey-panel {
     top: auto;
@@ -554,16 +565,104 @@ body.gev-site-survey
     padding: 0;
     border-radius: 50%;
   }
+  /* During a flight the panel slides away and the caption bar docks just
+     above the bottom menu, so the globe keeps the screen. */
+  .survey-panel {
+    transition:
+      transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.25s ease,
+      visibility 0s linear 0s;
+  }
+  body.survey-flight-showing .survey-panel {
+    transform: translateY(calc(100% + 120px));
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.25s ease,
+      visibility 0s linear 0.35s;
+  }
   .survey-flight-bar {
-    bottom: calc(52vh + 108px);
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 24px);
+    max-height: 40vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
+    padding: 10px 12px;
+    animation: survey-flight-bar-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .survey-flight-caption {
+    font-size: 14px;
   }
   .survey-flight-controls {
-    justify-content: flex-end;
+    justify-content: space-between;
+  }
+  .survey-flight-button {
+    flex: 1;
+    min-width: 44px;
+    height: 44px;
   }
   .survey-info {
     top: 72px;
+  }
+}
+
+/* Larger screens: the caption bar sits above the bottom toolbar
+   (#command-dock: 62px tall, about 16px up). */
+@media (min-width: 721px) {
+  .survey-flight-bar {
+    bottom: 92px;
+    animation: survey-flight-bar-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+/* Tablets and small laptops: no room beside the survey panel, so it slides
+   off to the right during a flight and returns when the flight closes. */
+@media (min-width: 721px) and (max-width: 1279px) {
+  .survey-panel {
+    transition:
+      transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.25s ease,
+      visibility 0s linear 0s;
+  }
+  body.survey-flight-showing .survey-panel {
+    transform: translateX(calc(100% + 40px));
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.25s ease,
+      visibility 0s linear 0.35s;
+  }
+  .survey-flight-bar {
+    width: calc(100vw - 48px);
+  }
+}
+/* Wide screens: the bar stays left of the survey panel. */
+@media (min-width: 1280px) {
+  .survey-flight-bar {
+    width: min(720px, calc(100vw - 800px));
+  }
+}
+
+@keyframes survey-flight-bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .survey-flight-bar,
+  .survey-panel {
+    animation: none;
+    transition: none;
   }
 }

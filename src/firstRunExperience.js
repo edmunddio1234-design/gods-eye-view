@@ -216,6 +216,12 @@ export function shouldShowFirstRun({
   if (hasShareState) return false;
   const params = new URLSearchParams(location?.search || '');
   if (params.get('welcome') === '0') return false;
+  // A guided-flight link (?tour=… or #tour=…) owns the opening screen, like
+  // a shared view: the launcher would sit on top of the flight.
+  const hashParams = new URLSearchParams(
+    String(location?.hash || '').replace(/^#/, ''),
+  );
+  if (params.get('tour') || hashParams.get('tour')) return false;
   // An embedded globe never shows the welcome launcher.
   if (params.get('embed') === '1' || globalThis.GEV_EMBED_INLINE === true)
     return false;

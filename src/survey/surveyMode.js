@@ -47,6 +47,7 @@ export function createSurveyMode({
   let active = false;
   let removeGuard = null;
   let restore = null;
+  let stopWatchingStack = null;
   let transition = Promise.resolve();
   const listeners = new Set();
 
@@ -140,6 +141,25 @@ export function createSurveyMode({
       saved.mapStack = stack;
       await styleManager?.setMapStack?.(SURVEY_MAP_STACK);
     }
+    if (!stack && mapStackController?.subscribe) {
+      // The opening map has not settled yet (start-up): when it does, move
+      // a Google 3D view to draped imagery as above.
+      const stop = mapStackController.subscribe((settled) => {
+        stop();
+        stopWatchingStack = null;
+        const id = settled?.activeId;
+        if (
+          restore === saved &&
+          id &&
+          !SURVEY_GLOBE_STACKS.includes(id) &&
+          mapStackController.isStackAvailable?.(SURVEY_MAP_STACK)
+        ) {
+          saved.mapStack = id;
+          void styleManager?.setMapStack?.(SURVEY_MAP_STACK);
+        }
+      });
+      stopWatchingStack = stop;
+    }
     if (scopeToggle?.checked) {
       saved.scope = true;
       scopeToggle.click();
@@ -152,6 +172,8 @@ export function createSurveyMode({
   async function leave() {
     const saved = restore;
     restore = null;
+    stopWatchingStack?.();
+    stopWatchingStack = null;
     removeGuard?.();
     removeGuard = null;
     windowRef.document.body.classList.remove(SURVEY_BODY_CLASS);

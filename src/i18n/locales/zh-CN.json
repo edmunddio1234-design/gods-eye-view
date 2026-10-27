@@ -3066,10 +3066,6 @@
   "USDA soil map units across the sample site; click the ground to read the soil.": "示例场地上的 USDA 土壤图斑；点击地面查看土壤信息。",
   "Topography: hillshade, USGS contours in feet and 3D terrain raised ×3 show how flat this land is.": "地形：山体阴影、以英尺标注的 USGS 等高线和放大 3 倍的三维地形显示这片土地有多平坦。",
   "Africa – Ghana": "非洲 – 加纳",
-  "Africa from space, on Esri satellite imagery.": "从太空看非洲，使用 Esri 卫星影像。",
-  "West Africa and the Gulf of Guinea.": "西非和几内亚湾。",
-  "Ghana, with country borders and place names from Esri’s world reference map.": "加纳，显示来自 Esri 世界参考地图的国界和地名。",
-  "Accra, Ghana’s capital, on the Gulf of Guinea coast.": "加纳首都阿克拉，位于几内亚湾沿岸。",
   "Berekum, Bono Region, with roads and 2024 land cover (red is built-up land). 2S Global research looked at how roads and land cover shape urban heat here.": "博诺区贝雷库姆，显示道路和 2024 年土地覆盖（红色为建成区）。2S Global 的研究在此考察了道路和土地覆盖如何影响城市热环境。",
   "Read the research": "阅读研究",
   "Berekum topography: Esri hillshade and global 3D terrain raised ×3 (US contour lines do not cover Ghana).": "贝雷库姆地形：Esri 山体阴影和放大 3 倍的全球三维地形（美国等高线不覆盖加纳）。",
@@ -3209,5 +3205,9 @@
   "Open SoilGrids": "打开 SoilGrids",
   "Ground height": "地面高度",
   "Above mean sea level (EGM96), from the 3D terrain model, at {point}.": "平均海平面以上（EGM96），来自三维地形模型，位置 {point}。",
-  "Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.": "来自三维地形模型的椭球高（WGS-84），位置 {point}。"
+  "Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.": "来自三维地形模型的椭球高（WGS-84），位置 {point}。",
+  "Starting the guided flight...": "正在开始导览飞行...",
+  "Ghana in West Africa, with country borders and place names from Esri’s world reference map.": "西非的加纳，显示来自 Esri 世界参考地图的国界和地名。",
+  "Accra, Ghana’s capital, on the Gulf of Guinea coast, at city scale on Esri imagery.": "加纳首都阿克拉，位于几内亚湾沿岸，以城市尺度显示于 Esri 影像上。",
+  "Kumasi, Ghana’s second city, in the Ashanti Region.": "库马西，加纳第二大城市，位于阿散蒂区。"
 }
