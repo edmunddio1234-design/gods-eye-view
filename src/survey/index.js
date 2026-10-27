@@ -15,6 +15,7 @@ import { createSurveyPanel } from './panel.js';
 import { createSurveyScene } from './surveyScene.js';
 import { sampleTerrainHeights } from './terrainSampler.js';
 import { isSurveyRequested } from './policy.js';
+import { requestedTour } from './guidedFlights.js';
 
 export const SURVEY_TOGGLE_ID = 'site-survey-toggle';
 
@@ -96,16 +97,26 @@ export function initSiteSurvey({
 
   let destroyed = false;
   // Open in survey mode when the address asks, after the shared view (which
-  // may turn layers on) has been restored.
-  if (isSurveyRequested(location))
+  // may turn layers on) has been restored. `?tour=<id>` also opens it and
+  // starts that guided flight straight away.
+  const tour = requestedTour(location);
+  if (isSurveyRequested(location) || tour)
     void Promise.resolve(ready)
       .catch(() => {})
       .then(() => {
-        if (!destroyed) return mode.setActive(true);
-        return null;
+        if (destroyed) return null;
+        if (tour && !mode.active) {
+          // Fly as soon as the panel is up; the mode's own changes (layer
+          // guard, map stack) finish alongside.
+          const started = mode.setActive(true);
+          panel.player.play(tour);
+          return started;
+        }
+        return mode.setActive(true);
       });
 
   const api = {
+    viewer,
     mode,
     panel,
     draw,

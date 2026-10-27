@@ -1,6 +1,7 @@
 /**
- * Site Survey on the globe: the boundary, the profile line, the flight plan
- * and the public land overlays, each owned here and removed by `destroy()`.
+ * Site Survey on the globe: the boundary, the profile line and the flight
+ * plan, each owned here and removed by `destroy()`. Map layers live in
+ * surveyLayers.js.
  *
  * Shapes lie on the surface (ground polylines and a classified polygon), so
  * they follow terrain on the globe and the photoreal mesh alike. There are no
@@ -8,8 +9,6 @@
  * the panel's legend names what each colour is.
  */
 import * as Cesium from 'cesium';
-import { t } from '../i18n/index.js';
-import { SURVEY_OVERLAYS, overlayWmsSettings } from './overlays.js';
 
 const DATA_SOURCE_NAME = 'gev-site-survey';
 export const SURVEY_COLORS = Object.freeze({
@@ -43,8 +42,6 @@ export function createSurveyScene(viewer) {
     plan: [],
   };
   const handleIndex = new Map();
-  const overlayLayers = new Map();
-  let overlayAlpha = 0.6;
   let destroyed = false;
 
   const clearGroup = (name) => {
@@ -160,42 +157,6 @@ export function createSurveyScene(viewer) {
       }
       render();
     },
-    /** Turn a public overlay on or off. */
-    setOverlay(id, on) {
-      if (destroyed) return;
-      const existing = overlayLayers.get(id);
-      if (!on) {
-        if (existing) {
-          viewer.imageryLayers.remove(existing, true);
-          overlayLayers.delete(id);
-          render();
-        }
-        return;
-      }
-      if (existing) return;
-      const settings = overlayWmsSettings(id);
-      const overlay = SURVEY_OVERLAYS.find((o) => o.id === id);
-      if (!settings || !overlay) return;
-      const provider = new Cesium.WebMapServiceImageryProvider({
-        url: settings.url,
-        layers: settings.layers,
-        parameters: { transparent: true, format: 'image/png', styles: '' },
-        enablePickFeatures: false,
-        credit: new Cesium.Credit(t(overlay.attribution)),
-      });
-      const layer = viewer.imageryLayers.addImageryProvider(provider);
-      layer.alpha = overlayAlpha;
-      overlayLayers.set(id, layer);
-      render();
-    },
-    isOverlayOn(id) {
-      return overlayLayers.has(id);
-    },
-    setOverlayAlpha(alpha) {
-      overlayAlpha = Math.min(1, Math.max(0.1, alpha));
-      for (const layer of overlayLayers.values()) layer.alpha = overlayAlpha;
-      render();
-    },
     /** Fly to frame the boundary from above. */
     flyToBoundary(vertices) {
       if (!(vertices?.length >= 3)) return;
@@ -225,14 +186,6 @@ export function createSurveyScene(viewer) {
     destroy() {
       if (destroyed) return attaching;
       destroyed = true;
-      for (const layer of overlayLayers.values()) {
-        try {
-          viewer.imageryLayers.remove(layer, true);
-        } catch {
-          /* viewer already disposed */
-        }
-      }
-      overlayLayers.clear();
       entities.removeAll();
       attaching = attaching.then(() => {
         try {

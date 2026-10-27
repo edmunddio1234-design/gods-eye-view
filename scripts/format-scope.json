@@ -1125,5 +1125,10 @@
   "src/survey/terrainStats.test.mjs",
   "src/survey/units.test.mjs",
   "server/providers/surveyWms.test.mjs",
-  "src/ui/styles/survey.css"
+  "src/ui/styles/survey.css",
+  "src/survey/layerCatalog.test.mjs",
+  "src/survey/graticule.test.mjs",
+  "src/survey/pointSources.test.mjs",
+  "src/survey/soilInfo.test.mjs",
+  "src/survey/guidedFlights.test.mjs"
 ]

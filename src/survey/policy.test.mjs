@@ -20,6 +20,7 @@ import {
 import {
   SURVEY_FIRE_LAYER_ID,
   SURVEY_OVERLAYS,
+  overlayTileSettings,
   overlayWmsSettings,
 } from './overlays.js';
 
@@ -98,16 +99,34 @@ test('the address flag is set and cleared without touching the hash', () => {
   );
 });
 
-test('the overlay catalog and the WMS table agree, and every overlay is credited', () => {
-  assert.deepEqual(
-    SURVEY_OVERLAYS.map((o) => o.id).sort(),
-    Object.keys(SURVEY_WMS_SERVICES).sort(),
-  );
+test('every overlay draws from a WMS service or a direct tile template, and is credited', () => {
+  const ids = SURVEY_OVERLAYS.map((o) => o.id);
+  for (const id of Object.keys(SURVEY_WMS_SERVICES))
+    assert.ok(ids.includes(id), `${id} has an overlay`);
   for (const overlay of SURVEY_OVERLAYS) {
     assert.ok(overlay.attribution.length > 20, overlay.id);
     assert.ok(overlay.legend.length >= 1, overlay.id);
-    assert.ok(overlayWmsSettings(overlay.id).layers);
+    assert.ok(overlay.help.length > 20, overlay.id);
+    assert.equal(overlay.coverage, 'us', overlay.id);
+    const tiles = overlayTileSettings(overlay.id);
+    assert.ok(tiles?.template || tiles?.wms, overlay.id);
+    if (tiles.template)
+      assert.equal(new URL(tiles.template).protocol, 'https:', overlay.id);
   }
+  // FEMA and USFWS draw straight from their REST services in the browser
+  // (FEMA's WMS answered 400 and blocks some cloud hosts); the WMS route is
+  // their fallback.
+  for (const id of ['fema-nfhl', 'usfws-nwi']) {
+    const tiles = overlayTileSettings(id);
+    assert.match(tiles.template, /\/MapServer\/export\?/);
+    assert.equal(tiles.wms.url, `${SURVEY_WMS_ROUTE}/${id}`);
+  }
+  assert.match(
+    overlayTileSettings('usgs-nhd').template,
+    /hydro\.nationalmap\.gov/,
+  );
+  assert.equal(overlayWmsSettings('usgs-nhd'), null);
+  assert.equal(overlayTileSettings('nope'), null);
   assert.equal(SURVEY_WMS_SERVICES['fema-nfhl'].layers, '28');
   assert.equal(SURVEY_WMS_SERVICES['usfws-nwi'].layers, '0');
   assert.equal(SURVEY_WMS_SERVICES['nrcs-ssurgo'].layers, 'mapunitpoly');

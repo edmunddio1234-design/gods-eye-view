@@ -10,7 +10,7 @@
  * removed by `destroy()`, so nothing about it lives in the shared templates.
  */
 import { forward as toMgrs } from 'mgrs';
-import { t, tn, registerUnsavedWork } from '../i18n/index.js';
+import { formatDate, msg, t, tn, registerUnsavedWork } from '../i18n/index.js';
 import { polygonAreaM2, perimeterM, polygonCentroid } from './geodesy.js';
 import {
   formatArea,
@@ -57,6 +57,37 @@ import { buildSiteReportHtml } from './report.js';
 import { profileChartSvg } from './profileChart.js';
 import { SURVEY_GLOBE_STACKS, SURVEY_MAP_STACK } from './policy.js';
 import { SURVEY_COLORS } from './surveyScene.js';
+import {
+  SURVEY_DEFAULT_ON,
+  SURVEY_LAYERS,
+  SURVEY_LAYER_GROUPS,
+  WAYBACK_RELEASES,
+  isInUnitedStates,
+} from './layerCatalog.js';
+import { createSurveyLayers, fetchJson } from './surveyLayers.js';
+import { createFlightPlayer } from './flightPlayer.js';
+import { GUIDED_FLIGHTS } from './guidedFlights.js';
+import { createSurveyInfoCard } from './infoCard.js';
+import { createSurveyClickHandler } from './surveyClicks.js';
+import {
+  SDA_URL,
+  compositionText,
+  parseSdaSoil,
+  parseSoilGrids,
+  sdaSoilRequest,
+  soilGridsUrl,
+} from './soilInfo.js';
+import {
+  USGS_PARAMETERS,
+  epaFacilityPage,
+  formatReading,
+  usgsStationPage,
+} from './pointSources.js';
+
+/** Help for the NASA FIRMS row, which is an app layer, not a survey one. */
+const FIRE_HELP = msg(
+  'NASA satellite detections of active fires and hot spots in the last day or two, anywhere in the world.',
+);
 
 export const SURVEY_PANEL_ID = 'site-survey-panel';
 
@@ -131,7 +162,7 @@ export function createSurveyPanel({
     terrain: { status: 'not-run' },
     profileSamples: [],
     profileResult: null,
-    overlaysViewed: new Set(),
+    layersViewed: new Set(),
     droneId: DEFAULT_DRONE_ID,
     custom: { ...DRONE_PRESETS[0] },
     altitudeM: PLAN_DEFAULTS.altitudeM,
@@ -150,6 +181,16 @@ export function createSurveyPanel({
   };
   let terrainController = null;
   let profileController = null;
+  let active = false;
+
+  // The survey's map layers: draped imagery, grid, relief and points.
+  const layers = createSurveyLayers(viewer, {
+    getUnits: () => state.units,
+    getAnchor: () =>
+      state.boundary.length >= 3 ? polygonCentroid(state.boundary) : null,
+    onStatus: (id, status) => renderLayerStatus(id, status),
+  });
+  disposers.push(() => layers.destroy());
 
   // ---- DOM helpers -----------------------------------------------------
   const el = (tag, props = {}, children = []) => {
@@ -324,9 +365,141 @@ export function createSurveyPanel({
     profileReadout,
   );
 
-  // ---- 3. overlays -----------------------------------------------------
+  // ---- 3. map layers ---------------------------------------------------
+  // Every layer row: a checkbox, its name, a "?" that opens one sentence of
+  // help, a status word while it loads, and (for overlays) a legend and the
+  // credit line.
+  const layerRows = new Map();
+  const statusText = (status) => {
+    switch (status?.state) {
+      case 'loading':
+        return t('loading…');
+      case 'error':
+        return t('no answer');
+      case 'zoom-in':
+        return t('zoom in to load');
+      case 'no-terrain':
+        return t('no 3D terrain');
+      case 'ready':
+        return Number.isFinite(status.count)
+          ? tn(status.count, '{count} point', '{count} points')
+          : '';
+      default:
+        return '';
+    }
+  };
+  /** Where the map is looking: inside the US or not (US-only layers say so). */
+  let viewInUs = true;
+  function renderLayerStatus(id, status = layers.status(id)) {
+    const row = layerRows.get(id);
+    if (!row) return;
+    const on = row.checkbox.checked;
+    row.status.textContent =
+      on && row.usOnly && !viewInUs
+        ? t('no data outside the US')
+        : on
+          ? statusText(status)
+          : '';
+  }
+  const layerRow = (id, labelText, helpText, extras = [], usOnly = false) => {
+    const checkbox = el('input', { type: 'checkbox', 'data-survey-layer': id });
+    const helpId = `survey-help-${id}`;
+    const helpButton = el('button', {
+      type: 'button',
+      class: 'survey-help-button',
+      text: '?',
+      'aria-label': t('What is {layer}?', { layer: labelText }),
+      title: t('What is this?'),
+      'aria-expanded': 'false',
+      'aria-controls': helpId,
+    });
+    const help = el('p', {
+      id: helpId,
+      class: 'survey-help',
+      text: helpText,
+      hidden: true,
+    });
+    const status = el('span', { class: 'survey-layer-status' });
+    const row = el('div', { class: 'survey-overlay', 'data-layer-row': id }, [
+      el('div', { class: 'survey-layer-line' }, [
+        el('label', { class: 'survey-check' }, [
+          checkbox,
+          el('span', { text: labelText }),
+          usOnly
+            ? el('span', { class: 'survey-usonly', text: t('US only') })
+            : null,
+        ]),
+        status,
+        helpButton,
+      ]),
+      help,
+      ...extras,
+    ]);
+    listen(helpButton, 'click', () => {
+      help.hidden = !help.hidden;
+      helpButton.setAttribute('aria-expanded', String(!help.hidden));
+    });
+    const entry = { checkbox, status, help, helpButton, extras, row, usOnly };
+    layerRows.set(id, entry);
+    return entry;
+  };
+  const legendList = (legend) =>
+    el(
+      'ul',
+      { class: 'survey-legend', hidden: true },
+      legend.map((entry) =>
+        el('li', {}, [
+          el('span', {
+            class: `survey-swatch${entry.outline ? ' survey-swatch--outline' : ''}`,
+            'aria-hidden': 'true',
+            style: entry.outline
+              ? `border-color:${entry.color}`
+              : `background:${entry.color}`,
+          }),
+          el('span', { text: t(entry.label) }),
+        ]),
+      ),
+    );
+  const creditLine = (text) =>
+    el('p', { class: 'survey-credit', text, hidden: true });
+
+  /** Turn a survey layer on or off and keep its row in step. */
+  function setLayer(id, on) {
+    layers.set(id, on);
+    const row = layerRows.get(id);
+    if (row) {
+      row.checkbox.checked = layers.isOn(id);
+      for (const extra of row.extras) extra.hidden = !row.checkbox.checked;
+      if (!row.checkbox.checked) row.status.textContent = '';
+    }
+    if (layers.isOn(id)) state.layersViewed.add(id);
+    if (id === 'past-wayback') {
+      waybackControls.hidden = !layers.isOn(id);
+      renderCompare();
+    }
+    renderLayerStatus(id);
+  }
+
+  const catalogSection = (groupId, open) => {
+    const group = SURVEY_LAYER_GROUPS.find((g) => g.id === groupId);
+    const sec = section(t(group.label), open);
+    for (const layer of SURVEY_LAYERS.filter((l) => l.group === groupId)) {
+      const row = layerRow(
+        layer.id,
+        t(layer.label),
+        t(layer.help),
+        [creditLine(t(layer.attribution))],
+        layer.coverage === 'us',
+      );
+      sec.body.append(row.row);
+    }
+    return sec;
+  };
+
+  const referenceSection = catalogSection('reference', true);
+  const topoSection = catalogSection('topography', true);
+
   const overlaySection = section(t('Public land overlays'));
-  const overlayRows = new Map();
   const opacity = el('input', {
     type: 'range',
     class: 'gev-quantitative-slider survey-opacity',
@@ -344,60 +517,109 @@ export function createSurveyPanel({
     }),
   );
   for (const overlay of SURVEY_OVERLAYS) {
-    const checkbox = el('input', { type: 'checkbox' });
-    const legend = el(
-      'ul',
-      { class: 'survey-legend', hidden: true },
-      overlay.legend.map((entry) =>
-        el('li', {}, [
-          el('span', {
-            class: `survey-swatch${entry.outline ? ' survey-swatch--outline' : ''}`,
-            'aria-hidden': 'true',
-            style: entry.outline
-              ? `border-color:${entry.color}`
-              : `background:${entry.color}`,
-          }),
-          el('span', { text: t(entry.label) }),
-        ]),
-      ),
+    const row = layerRow(
+      overlay.id,
+      t(overlay.label),
+      t(overlay.help),
+      [legendList(overlay.legend), creditLine(t(overlay.attribution))],
+      overlay.coverage === 'us',
     );
-    const credit = el('p', {
-      class: 'survey-credit',
-      text: t(overlay.attribution),
-      hidden: true,
-    });
-    const row = el('div', { class: 'survey-overlay' }, [
-      el('label', { class: 'survey-check' }, [
-        checkbox,
-        el('span', { text: t(overlay.label) }),
-      ]),
-      legend,
-      credit,
-    ]);
-    overlayRows.set(overlay.id, { checkbox, legend, credit });
-    overlaySection.body.append(row);
-    listen(checkbox, 'change', () => {
-      scene.setOverlay(overlay.id, checkbox.checked);
-      legend.hidden = !checkbox.checked;
-      credit.hidden = !checkbox.checked;
-      if (checkbox.checked) state.overlaysViewed.add(overlay.id);
-    });
+    overlaySection.body.append(row.row);
   }
-  const fireCheckbox = el('input', { type: 'checkbox' });
-  const fireCredit = el('p', {
-    class: 'survey-credit',
-    text: t(SURVEY_FIRE_ATTRIBUTION),
-    hidden: true,
+  const fireRow = layerRow(
+    SURVEY_FIRE_LAYER_ID,
+    t('NASA FIRMS active fires'),
+    t(FIRE_HELP),
+    [creditLine(t(SURVEY_FIRE_ATTRIBUTION))],
+  );
+  const fireCheckbox = fireRow.checkbox;
+  const fireCredit = fireRow.extras[0];
+  overlaySection.body.append(fireRow.row, field(t('Overlay opacity'), opacity));
+
+  const monitoringSection = catalogSection('monitoring', false);
+  const worldSection = catalogSection('world', false);
+  worldSection.body.prepend(
+    el('p', {
+      class: 'survey-note',
+      text: t(
+        'These layers cover the whole world, so Survey mode also works outside the US.',
+      ),
+    }),
+  );
+  const pastSection = catalogSection('past', false);
+  const waybackButtons = WAYBACK_RELEASES.map((release, index) =>
+    el('button', {
+      type: 'button',
+      class: 'gev-segment',
+      role: 'radio',
+      text: release.year,
+      title: release.date,
+      'data-wayback': String(index),
+    }),
+  );
+  const compareInput = el('input', { type: 'checkbox' });
+  const splitInput = el('input', {
+    type: 'range',
+    class: 'gev-quantitative-slider survey-opacity',
+    min: '5',
+    max: '95',
+    value: '50',
+    'aria-label': t('Where the comparison divides the view'),
+    disabled: true,
   });
-  overlaySection.body.append(
-    el('div', { class: 'survey-overlay' }, [
-      el('label', { class: 'survey-check' }, [
-        fireCheckbox,
-        el('span', { text: t('NASA FIRMS active fires') }),
-      ]),
-      fireCredit,
+  const swipeLine = el('div', {
+    class: 'survey-swipe-line',
+    hidden: true,
+    'aria-hidden': 'true',
+  });
+  documentRef.body.appendChild(swipeLine);
+  disposers.push(() => swipeLine.remove());
+  const waybackControls = el('div', { class: 'survey-wayback', hidden: true }, [
+    el(
+      'div',
+      {
+        class: 'gev-segmented survey-wayback-years',
+        role: 'radiogroup',
+        'aria-label': t('Archive release'),
+      },
+      waybackButtons,
+    ),
+    el('label', { class: 'survey-check' }, [
+      compareInput,
+      el('span', { text: t('Compare with today (past on the left)') }),
     ]),
-    field(t('Overlay opacity'), opacity),
+    field(t('Divide at'), splitInput),
+    el('p', {
+      class: 'survey-note',
+      text: t(
+        'Dates are archive releases. A place nobody re-imaged between two releases looks the same in both.',
+      ),
+    }),
+  ]);
+  pastSection.body.append(waybackControls);
+
+  // ---- guided flights --------------------------------------------------
+  const flightsSection = section(t('Guided flights'), true);
+  const flightSelect = el(
+    'select',
+    {
+      class: 'gev-field gev-field--compact survey-select',
+      'aria-label': t('Guided flight'),
+    },
+    GUIDED_FLIGHTS.map((flight) =>
+      el('option', { value: flight.id, text: t(flight.label) }),
+    ),
+  );
+  const flightPlayButton = button(t('Play flight'), 'survey-primary');
+  flightsSection.body.append(
+    el('p', {
+      class: 'survey-note',
+      text: t(
+        'A short tour with captions that turns the matching layers on as it goes.',
+      ),
+    }),
+    field(t('Flight'), flightSelect),
+    el('div', { class: 'survey-actions' }, [flightPlayButton]),
   );
 
   // ---- 4. flight plan --------------------------------------------------
@@ -532,9 +754,15 @@ export function createSurveyPanel({
   );
 
   panel.append(
+    flightsSection.details,
     siteSection.details,
-    terrainSection.details,
+    referenceSection.details,
+    topoSection.details,
     overlaySection.details,
+    monitoringSection.details,
+    worldSection.details,
+    pastSection.details,
+    terrainSection.details,
     planSection.details,
     reportSection.details,
   );
@@ -859,6 +1087,7 @@ export function createSurveyPanel({
     renderSite();
     computePlan();
     void runTerrain();
+    layers.refreshGrid();
     if (fly) scene.flyToBoundary(state.boundary);
   }
 
@@ -892,11 +1121,17 @@ export function createSurveyPanel({
     for (const overlay of SURVEY_OVERLAYS)
       attributions.push(t(overlay.attribution));
     attributions.push(t(SURVEY_FIRE_ATTRIBUTION));
+    for (const layer of SURVEY_LAYERS)
+      if (state.layersViewed.has(layer.id))
+        attributions.push(t(layer.attribution));
     for (const credit of SURVEY_BASE_ATTRIBUTIONS) attributions.push(t(credit));
     const overlays = SURVEY_OVERLAYS.map((overlay) => ({
       label: t(overlay.label),
-      checked: state.overlaysViewed.has(overlay.id),
+      checked: state.layersViewed.has(overlay.id),
     }));
+    for (const layer of SURVEY_LAYERS)
+      if (state.layersViewed.has(layer.id))
+        overlays.push({ label: t(layer.label), checked: true });
     overlays.push({
       label: t('NASA FIRMS active fires'),
       checked: state.fireViewed,
@@ -958,6 +1193,7 @@ export function createSurveyPanel({
   const setUnits = (system) => {
     state.units = system === 'metric' ? 'metric' : 'us';
     writeUnitSystem(state.units);
+    layers.refreshGrid();
     renderAll();
   };
   listen(unitsUs, 'click', () => setUnits('us'));
@@ -1011,7 +1247,7 @@ export function createSurveyPanel({
     renderProfile();
   });
   listen(opacity, 'input', () =>
-    scene.setOverlayAlpha(Number(opacity.value) / 100),
+    layers.setOverlayAlpha(Number(opacity.value) / 100),
   );
   listen(fireCheckbox, 'change', () => {
     void dataManager
@@ -1020,6 +1256,286 @@ export function createSurveyPanel({
       })
       ?.finally?.(renderFire);
   });
+  for (const [id, row] of layerRows) {
+    if (id === SURVEY_FIRE_LAYER_ID) continue;
+    listen(row.checkbox, 'change', () => setLayer(id, row.checkbox.checked));
+  }
+  function renderWayback() {
+    waybackButtons.forEach((b, index) => {
+      const on = index === layers.waybackIndex;
+      b.setAttribute('aria-checked', String(on));
+      b.classList.toggle('active', on);
+    });
+  }
+  waybackButtons.forEach((b, index) =>
+    listen(b, 'click', () => {
+      layers.setWaybackRelease(index);
+      if (!layers.isOn('past-wayback')) setLayer('past-wayback', true);
+      renderWayback();
+    }),
+  );
+  renderWayback();
+  function renderCompare() {
+    const on = compareInput.checked && layers.isOn('past-wayback');
+    const at = Number(splitInput.value) / 100;
+    layers.setWaybackCompare(on, at);
+    splitInput.disabled = !on;
+    swipeLine.hidden = !on;
+    if (on) {
+      const rect = viewer.scene.canvas.getBoundingClientRect();
+      swipeLine.style.left = `${rect.left + rect.width * at}px`;
+      swipeLine.style.top = `${rect.top}px`;
+      swipeLine.style.height = `${rect.height}px`;
+    }
+  }
+  listen(compareInput, 'change', renderCompare);
+  listen(splitInput, 'input', renderCompare);
+
+  // ---- guided flights --------------------------------------------------
+  const player = createFlightPlayer({ viewer, layers, setLayer, documentRef });
+  disposers.push(() => player.destroy());
+  // Play starts the first camera move inside this click handler.
+  listen(flightPlayButton, 'click', () => player.play(flightSelect.value));
+
+  // ---- map clicks: soils, stations, EPA sites --------------------------
+  const info = createSurveyInfoCard({ documentRef });
+  disposers.push(() => info.destroy());
+  const when = (iso) => {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const days = (Date.now() - date.getTime()) / 864e5;
+    const text = formatDate(date, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      ...(days < 2 ? { hour: 'numeric', minute: '2-digit' } : {}),
+    });
+    return days > 30 ? t('{date} (older reading)', { date: text }) : text;
+  };
+  function showStation(site) {
+    info.show({
+      kicker: t('USGS station {id}', { id: site.id.replace(/^USGS-/, '') }),
+      title: site.name,
+      rows: site.readings.map((r) => [
+        USGS_PARAMETERS[r.code]
+          ? t(USGS_PARAMETERS[r.code])
+          : t('Parameter {code}', { code: r.code }),
+        formatReading(r, state.units),
+        when(r.time),
+      ]),
+      note: site.readings.length
+        ? t('Latest values reported to USGS; recent data are provisional.')
+        : t('No recent readings from this station.'),
+      links: [
+        {
+          href: usgsStationPage(site.id),
+          label: t('Open the USGS station page'),
+        },
+      ],
+    });
+  }
+  function showEpa(site) {
+    info.show({
+      kicker: t('EPA regulated site'),
+      title: site.name || t('Unnamed site'),
+      subtitle: site.address,
+      rows: site.programs.map((p) => [
+        t('Program'),
+        t(p.name),
+        [p.system, p.systemId].filter(Boolean).join(' '),
+      ]),
+      note: t(
+        'Being listed does not mean a site is contaminated; check the EPA record.',
+      ),
+      links: [
+        {
+          href: epaFacilityPage(site.id),
+          label: t('Open the EPA facility record'),
+        },
+        ...site.programs
+          .filter((p) => p.url)
+          .slice(0, 2)
+          .map((p) => ({
+            href: p.url,
+            label: t('{program} record', { program: t(p.name) }),
+          })),
+      ],
+    });
+  }
+  async function showSoil(point) {
+    const token = info.loading(t('USDA soil survey'), formatLatLon(point));
+    try {
+      const soil = parseSdaSoil(
+        await fetchJson(SDA_URL, { body: sdaSoilRequest(point) }),
+      );
+      if (!info.isCurrent(token)) return;
+      if (!soil) {
+        info.show({
+          kicker: t('USDA soil survey'),
+          title: t('No soil record here'),
+          note: t('Water, built-up land, or outside the soil survey.'),
+        });
+        return;
+      }
+      info.show({
+        kicker: t('USDA soil survey'),
+        title: soil.name,
+        rows: [
+          ...(soil.component
+            ? [
+                [
+                  t('Main soil'),
+                  soil.componentPct === null
+                    ? soil.component
+                    : t('{name} ({pct}% of the unit)', {
+                        name: soil.component,
+                        pct: soil.componentPct,
+                      }),
+                ],
+              ]
+            : []),
+          [
+            t('Texture'),
+            [soil.texture, compositionText(soil)].filter(Boolean).join(' · ') ||
+              t('Not recorded'),
+          ],
+          [t('Drainage class'), soil.drainage || t('Not recorded')],
+          [t('Farmland class'), soil.farmland || t('Not recorded')],
+        ],
+        note: t('USDA NRCS Soil Data Access (SSURGO), at {point}.', {
+          point: formatLatLon(point),
+        }),
+        links: [
+          {
+            href: 'https://websoilsurvey.nrcs.usda.gov/',
+            label: t('Open Web Soil Survey'),
+          },
+        ],
+      });
+    } catch {
+      if (!info.isCurrent(token)) return;
+      info.show({
+        kicker: t('USDA soil survey'),
+        title: t('The soil service did not answer'),
+        note: t('Try the click again in a moment.'),
+      });
+    }
+  }
+  async function showSoilGrids(point) {
+    const token = info.loading(t('SoilGrids (worldwide)'), formatLatLon(point));
+    try {
+      const soil = parseSoilGrids(await fetchJson(soilGridsUrl(point)));
+      if (!info.isCurrent(token)) return;
+      if (!soil) {
+        info.show({
+          kicker: t('SoilGrids (worldwide)'),
+          title: t('No SoilGrids estimate here'),
+          note: t('Towns and water are not mapped by SoilGrids.'),
+        });
+        return;
+      }
+      info.show({
+        kicker: t('SoilGrids (worldwide)'),
+        title: soil.texture ? t(soil.texture) : t('Topsoil (0–5 cm)'),
+        rows: [
+          [t('Sand'), `${soil.sand}%`],
+          [t('Silt'), `${soil.silt}%`],
+          [t('Clay'), `${soil.clay}%`],
+        ],
+        note: t(
+          'Modelled topsoil (0–5 cm) from ISRIC SoilGrids 2.0, at {point}; check on site.',
+          { point: formatLatLon(point) },
+        ),
+        links: [
+          {
+            href: 'https://soilgrids.org/',
+            label: t('Open SoilGrids'),
+          },
+        ],
+      });
+    } catch {
+      if (!info.isCurrent(token)) return;
+      info.show({
+        kicker: t('SoilGrids (worldwide)'),
+        title: t('The soil service did not answer'),
+        note: t('Try the click again in a moment.'),
+      });
+    }
+  }
+  const clicks = createSurveyClickHandler({
+    viewer,
+    isActive: () => active,
+    infoOf: (entity) => layers.infoOf(entity),
+    onPoint: (picked) =>
+      picked.kind === 'station'
+        ? showStation(picked.site)
+        : showEpa(picked.site),
+    onGround: (point) => {
+      if (layers.isOn('nrcs-ssurgo') && isInUnitedStates(point.lon, point.lat))
+        void showSoil(point);
+      else if (layers.isOn('world-soilgrids')) void showSoilGrids(point);
+      else if (
+        ['topo-hillshade', 'topo-contours', 'topo-relief'].some((id) =>
+          layers.isOn(id),
+        )
+      )
+        void showHeight(point);
+    },
+  });
+  disposers.push(() => clicks.destroy());
+  async function showHeight(point) {
+    const token = info.loading(t('Ground height'), formatLatLon(point));
+    try {
+      const result = await sampleHeights([point], {});
+      if (!info.isCurrent(token)) return;
+      const h = result?.status === 'ok' ? result.heights[0] : NaN;
+      if (!Number.isFinite(h)) throw new Error('no height');
+      info.show({
+        kicker: t('Ground height'),
+        title: formatHeight(h, state.units),
+        rows: [
+          [
+            state.units === 'us' ? t('Metric') : t('US'),
+            formatHeight(h, state.units === 'us' ? 'metric' : 'us'),
+          ],
+        ],
+        note:
+          result.datum === 'egm96'
+            ? t(
+                'Above mean sea level (EGM96), from the 3D terrain model, at {point}.',
+                {
+                  point: formatLatLon(point),
+                },
+              )
+            : t(
+                'Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.',
+                {
+                  point: formatLatLon(point),
+                },
+              ),
+      });
+    } catch {
+      if (!info.isCurrent(token)) return;
+      info.show({
+        kicker: t('Ground height'),
+        title: t('Terrain not loaded — add a Cesium ion token for elevation'),
+      });
+    }
+  }
+  // US-only layers say when the map looks outside the US.
+  const onCameraSettled = () => {
+    const c = viewer.camera.positionCartographic;
+    const lon = (c.longitude * 180) / Math.PI;
+    const lat = (c.latitude * 180) / Math.PI;
+    const inUs = isInUnitedStates(lon, lat);
+    if (inUs === viewInUs) return;
+    viewInUs = inUs;
+    for (const id of layerRows.keys()) renderLayerStatus(id);
+  };
+  viewer.camera.moveEnd.addEventListener(onCameraSettled);
+  disposers.push(() =>
+    viewer.camera.moveEnd.removeEventListener(onCameraSettled),
+  );
   listen(droneSelect, 'change', () => {
     state.droneId = droneSelect.value;
     computePlan();
@@ -1116,19 +1632,25 @@ export function createSurveyPanel({
     element: panel,
     show(on) {
       panel.hidden = !on;
-      if (!on) {
+      active = Boolean(on);
+      if (on) {
+        // Reference layers (names, boundary lines, grid) open with the survey.
+        for (const id of SURVEY_DEFAULT_ON) setLayer(id, true);
+      } else {
         draw.stop();
-        // Overlays belong to the survey; leaving it takes them off the globe.
-        for (const [id, row] of overlayRows) {
-          if (!row.checkbox.checked) continue;
-          row.checkbox.checked = false;
-          row.legend.hidden = true;
-          row.credit.hidden = true;
-          scene.setOverlay(id, false);
-        }
+        player.stop();
+        info.hide();
+        // Survey layers belong to the survey; leaving it takes them off.
+        for (const id of layers.activeIds()) setLayer(id, false);
+        layers.clear();
       }
       renderAll();
     },
+    /** Guided flights (console and QA seam). */
+    player,
+    /** Survey map layers (console and QA seam). */
+    layers,
+    setLayer,
     /** Called by the draw controller when a shape is finished. */
     onFinish(kind, vertices) {
       if (kind === 'boundary') setBoundary(vertices);

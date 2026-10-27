@@ -10,12 +10,40 @@
  */
 import { msg } from '../i18n/marker.js';
 import { SURVEY_WMS_SERVICES, surveyWmsBrowserUrl } from './wmsServices.js';
+import { arcgisExportTemplate } from './layerCatalog.js';
+
+/**
+ * ArcGIS REST export templates the browser requests directly. FEMA's and the
+ * USFWS's REST map services answer a browser with CORS (the origin echoed)
+ * and drew in a real browser on 2026-10-27, when FEMA's WMS endpoint answered
+ * 400 to every GetMap. The WMS route through the app's server stays as the
+ * fallback for those two if the REST service stops answering.
+ */
+const DIRECT_TILES = Object.freeze({
+  'fema-nfhl': arcgisExportTemplate(
+    'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer',
+    { layers: 'show:28', dpi: 48, size: 512 },
+  ),
+  'usfws-nwi': arcgisExportTemplate(
+    'https://fwspublicservices.wim.usgs.gov/wetlandsmapservice/rest/services/Wetlands/MapServer',
+    { layers: 'show:0', dpi: 48, size: 512 },
+  ),
+  // NHD flowlines and waterbodies (no WMS twin).
+  'usgs-nhd': arcgisExportTemplate(
+    'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer',
+    { layers: 'show:2,4,6,7,9,10,12', dpi: 96, size: 512 },
+  ),
+});
 
 /** @typedef {{color:string, label:string, outline?:boolean}} LegendEntry */
 
 export const SURVEY_OVERLAYS = Object.freeze([
   Object.freeze({
     id: 'fema-nfhl',
+    coverage: 'us',
+    help: msg(
+      'FEMA flood zones: blue is high risk (a 1% chance of flooding each year), orange is moderate risk (US only).',
+    ),
     label: msg('FEMA flood hazard zones'),
     short: msg('Flood zones'),
     attribution: msg(
@@ -33,6 +61,10 @@ export const SURVEY_OVERLAYS = Object.freeze([
   }),
   Object.freeze({
     id: 'usfws-nwi',
+    coverage: 'us',
+    help: msg(
+      'Wetlands mapped by the US Fish and Wildlife Service, coloured by type, such as forested, marsh or open water (US only).',
+    ),
     label: msg('USFWS National Wetlands Inventory'),
     short: msg('Wetlands'),
     attribution: msg(
@@ -51,6 +83,10 @@ export const SURVEY_OVERLAYS = Object.freeze([
   }),
   Object.freeze({
     id: 'nrcs-ssurgo',
+    coverage: 'us',
+    help: msg(
+      'USDA soil map units; click the ground to see the soil name, texture, drainage class and farmland class (US only).',
+    ),
     label: msg('USDA NRCS soil map units (SSURGO)'),
     short: msg('Soils'),
     attribution: msg(
@@ -67,6 +103,10 @@ export const SURVEY_OVERLAYS = Object.freeze([
   }),
   Object.freeze({
     id: 'mrlc-nlcd',
+    coverage: 'us',
+    help: msg(
+      'What covered the ground in 2021, such as crops, forest, wetland or towns, from USGS satellite mapping (US only).',
+    ),
     label: msg('USGS/MRLC land cover (NLCD 2021)'),
     short: msg('Land cover'),
     attribution: msg(
@@ -89,6 +129,23 @@ export const SURVEY_OVERLAYS = Object.freeze([
       { color: '#ab6c28', label: msg('Cultivated crops') },
       { color: '#b8d9eb', label: msg('Woody wetlands') },
       { color: '#6c9fb8', label: msg('Emergent herbaceous wetlands') },
+    ]),
+  }),
+  Object.freeze({
+    id: 'usgs-nhd',
+    coverage: 'us',
+    help: msg(
+      'Rivers, streams, bayous, lakes and ponds from the USGS National Hydrography Dataset (US only).',
+    ),
+    label: msg('USGS water features (NHD)'),
+    short: msg('Water features'),
+    attribution: msg(
+      'U.S. Geological Survey, National Hydrography Dataset, public domain. hydro.nationalmap.gov',
+    ),
+    homepage: 'https://www.usgs.gov/national-hydrography',
+    legend: Object.freeze([
+      { color: '#3fa9f5', label: msg('Rivers, streams and canals') },
+      { color: '#9fd3f7', label: msg('Lakes, ponds and reservoirs') },
     ]),
   }),
 ]);
@@ -126,4 +183,16 @@ export function overlayWmsSettings(id) {
   const service = SURVEY_WMS_SERVICES[id];
   if (!service) return null;
   return { url: surveyWmsBrowserUrl(id), layers: service.layers };
+}
+
+/**
+ * How the browser draws an overlay: a direct REST export template (with the
+ * WMS settings as a fallback when there is one), or WMS alone.
+ * @returns {{template?: string, wms?: {url:string, layers:string}}|null}
+ */
+export function overlayTileSettings(id) {
+  const template = Object.hasOwn(DIRECT_TILES, id) ? DIRECT_TILES[id] : null;
+  const wms = overlayWmsSettings(id);
+  if (!template && !wms) return null;
+  return { ...(template ? { template } : {}), ...(wms ? { wms } : {}) };
 }

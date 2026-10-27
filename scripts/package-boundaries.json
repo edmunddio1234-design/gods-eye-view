@@ -2615,7 +2615,17 @@
       "src/survey/terrainSampler.js",
       "src/survey/terrainStats.js",
       "src/survey/units.js",
-      "src/survey/wmsServices.js"
+      "src/survey/wmsServices.js",
+      "src/survey/flightPlayer.js",
+      "src/survey/graticule.js",
+      "src/survey/graticuleProvider.js",
+      "src/survey/guidedFlights.js",
+      "src/survey/infoCard.js",
+      "src/survey/layerCatalog.js",
+      "src/survey/pointSources.js",
+      "src/survey/soilInfo.js",
+      "src/survey/surveyClicks.js",
+      "src/survey/surveyLayers.js"
     ],
     "external": [
       "hls.js",
