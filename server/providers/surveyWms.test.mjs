@@ -124,3 +124,23 @@ test('the plugin mounts one route in dev and in preview', () => {
   assert.deepEqual(mounted, ['/api/survey-wms', '/api/survey-wms']);
   assert.equal(plugin.name, 'survey-wms');
 });
+
+test('the tile cache keeps to its byte budget on a small host', async () => {
+  const big = new Uint8Array(3 * 1024 * 1024); // 3 MB tiles
+  big[0] = 0x89;
+  const handler = createSurveyWmsHandler({
+    fetchImpl: async () =>
+      new Response(big, { headers: { 'content-type': 'image/png' } }),
+  });
+  for (let i = 0; i < 40; i += 1) {
+    const res = recorder();
+    await handler(
+      request(`/fema-nfhl${QUERY.replace('-91.25', String(-91.25 - i))}`),
+      res,
+    );
+    assert.equal(res.statusCode, 200);
+  }
+  const stats = handler.cacheStats();
+  assert.ok(stats.bytes <= 48 * 1024 * 1024, `${stats.bytes} bytes cached`);
+  assert.ok(stats.entries <= 16 && stats.entries > 0);
+});

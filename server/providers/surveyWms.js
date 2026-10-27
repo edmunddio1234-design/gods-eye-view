@@ -17,6 +17,9 @@ const TIMEOUT_MS = 20_000;
 const MAX_TILE_BYTES = 4 * 1024 * 1024;
 const CACHE_MS = 6 * 3600_000;
 const CACHE_MAX = 512;
+// A byte budget as well as an entry count, so the cache stays small on a
+// 512 MB host whatever size the tiles are.
+const CACHE_MAX_BYTES = 48 * 1024 * 1024;
 const USER_AGENT = 'gods-eye-view-site-survey/1.0';
 
 /**
@@ -36,6 +39,13 @@ export function createSurveyWmsHandler(options = {}) {
     globalMax: 2400,
   });
   const cache = new Map();
+  let cacheBytes = 0;
+  const evict = (key) => {
+    const entry = cache.get(key);
+    if (!entry) return;
+    cacheBytes -= entry.bytes.length;
+    cache.delete(key);
+  };
 
   async function handler(req, res) {
     const fail = (status, error) => {
@@ -81,9 +91,11 @@ export function createSurveyWmsHandler(options = {}) {
       const bytes = Buffer.from(
         await readResponseBytesCapped(upstream, MAX_TILE_BYTES, signal),
       );
-      cache.delete(target.url);
+      evict(target.url);
       cache.set(target.url, { at: now(), type, bytes });
-      while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+      cacheBytes += bytes.length;
+      while (cache.size > CACHE_MAX || cacheBytes > CACHE_MAX_BYTES)
+        evict(cache.keys().next().value);
       if (res.destroyed) return undefined;
       res.writeHead(200, {
         'Content-Type': type,
@@ -95,6 +107,7 @@ export function createSurveyWmsHandler(options = {}) {
     }
   }
 
+  handler.cacheStats = () => ({ entries: cache.size, bytes: cacheBytes });
   return handler;
 }
 
