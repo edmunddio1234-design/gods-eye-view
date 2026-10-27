@@ -447,6 +447,24 @@ _The Space Missions layer replaying a Falcon 9 ascent — labeled `RECONSTRUCTED
 
 Share links carry the provider switches and filters (`0.m.0` Mapillary off, `0.m.0_0.r.google-1` Street View on, `0.m.0_0.r.google-0*kartaview-1*panoramax-0` KartaView on and `0.m.0_0.r.google-0*kartaview-0*panoramax-1` Panoramax on, as the app writes them (`0.m.0_0.r.kartaview-1` and `0.m.0_0.r.panoramax-1` work too; a link that leaves out `m` keeps Mapillary, the default, lit), `0.p.p` panoramas only, `0.s.365` the last year). To add a provider, implement the contract in `src/layers/streetLevel/registry.js` and register it in `src/app/layers/streetLevel.js`.
 
+## 📐 Site Survey
+
+> A land-survey workspace for desktop site screening: draw a parcel, read its area, terrain and public land layers, plan a drone mapping flight, and hand over a printable report.
+
+**Turn it on.** Press **SURVEY** in the globe actions at the top centre, or open the app with `?survey=1` (share links keep it). Example — Tallulah, Madison Parish, Louisiana: `http://localhost:4173/?survey=1#v=2&lat=32.4085&lon=-91.1868&alt=3000&heading=0&pitch=-90&roll=0&map=esri-imagery`. Press **×** on the panel, or **SURVEY** again, to leave.
+
+**What changes.** Tracking, camera, signal and military layers (aircraft, ships, satellites, CCTV, ALPR, radio, GNSS, military) turn off and stay off while the mode lasts; their rows leave DATA LAYERS. The cockpit closes, the HUD, detection boxes and scope mask turn off, the style returns to Normal, the right-hand rail is hidden and Google 3D gives way to Esri imagery so overlays can drape on the ground. Leaving puts back everything the mode changed. NASA FIRMS fires, weather and earthquakes stay available.
+
+**The panel** (US units first; **METRIC** switches and is remembered):
+
+- **Site.** **Draw boundary**, click the corners, double-click or Enter to finish (Backspace undoes, Esc cancels). **Edit** drags corners; right-click removes one. Area (acres and hectares), perimeter, centroid in degrees and MGRS — measured on the WGS-84 ellipsoid, not a flat map.
+- **Elevation and slope.** Sampled from the globe's terrain on a grid inside the boundary (`sampleTerrainMostDetailed`): lowest, highest and mean elevation above mean sea level (EGM96), mean and steepest slope. **Draw profile line** charts elevation along any line. Without a real terrain model the panel says *Terrain not loaded — add a Cesium ion token for elevation* rather than show numbers.
+- **Public land overlays.** FEMA flood hazard zones (NFHL), USFWS National Wetlands Inventory, USDA NRCS soil map units (SSURGO), USGS/MRLC land cover (NLCD 2021), plus NASA FIRMS fires — each with a legend and its source. FEMA and USFWS tiles come through the local route `/api/survey-wms/<id>`, which forwards only GetMap for the one configured layer to the one configured host. Overlays are for screening only and need field verification by a qualified professional.
+- **Flight plan.** DJI Mavic 3 Enterprise (default), Phantom 4 RTK, Matrice 350 RTK + Zenmuse P1 35 mm, or a custom camera; altitude AGL, front/side overlap, speed and flight-line direction (auto follows the longest edge). Shows GSD, footprint, line and photo spacing, lines, photos, distance, flight time and batteries (75 % of rated time each), draws the lawnmower path with green start and red end, warns above 400 ft AGL (Part 107), and exports **KML** (DJI Pilot 2, Google Earth) and **GeoJSON**. No airspace data is checked: authorize through LAANC or FAA DroneZone where required.
+- **Site screening report.** **Build report** downloads a self-contained *Preliminary Desktop Site Screening* page (site, terrain, overlays checked, flight plan, map snapshot, every source); **Open printable view** prints it to PDF.
+
+The boundary lives in the page only; reload or share links do not carry it yet. Code: `src/survey/` (pure maths in `geodesy.js`, `flightPlan.js`, `terrainStats.js`, with unit tests beside them).
+
 ## 🎖️ Field Missions
 
 Once the basics click, run these:

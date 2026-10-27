@@ -113,6 +113,28 @@ provider registration rejects compositions that cannot fit rather than truncatin
 identities. A malformed or duplicate entry invalidates the complete custom-switch
 field. Existing whole-link size limits still apply.
 
+## Site Survey — October 27, 2026
+
+`SURVEY` in the top-centre globe actions, or `?survey=1` in the address,
+turns on Site Survey (`src/survey/`). The mode keeps the layers in
+`SURVEY_HIDDEN_LAYER_IDS` (`src/survey/policy.js`) off through a lifecycle
+visibility guard, closes the cockpit, stops following, turns off the HUD,
+detection and scope mask, sets the Normal style and moves a Google 3D view to
+`esri-imagery`; leaving restores each of those it changed. `body.gev-site-survey`
+hides the right rail and the hidden layers' rows (`src/ui/styles/survey.css`).
+The flag is written to the query, which `/share/<code>` links keep.
+
+The panel measures the boundary on WGS-84 (authalic-sphere area, Vincenty
+perimeter), samples terrain with `sampleTerrainMostDetailed` from the globe's
+provider or a keyless Re:Earth provider and converts to EGM96 heights; with
+only an ellipsoid it reports "Terrain not loaded — add a Cesium ion token for
+elevation". Overlays are WMS imagery layers: NRCS SSURGO and MRLC NLCD 2021
+direct (CORS `*`), FEMA NFHL (layer `28`) and USFWS NWI (layer `0`) through
+`/api/survey-wms/<id>` (`server/providers/surveyWms.js`, GetMap only, fixed
+upstream per id, image responses only, 6-hour memory cache). The drone planner
+(`flightPlan.js`) and the report (`report.js`) are pure and unit-tested. The
+boundary is not persisted or shared.
+
 ## God's Eye View in conversations — October 2, 2026
 
 Tool answers that can be shown in God's Eye View include a view: camera, layers,
