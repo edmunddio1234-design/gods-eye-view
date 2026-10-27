@@ -12,8 +12,8 @@ import { msg } from '../i18n/marker.js';
 import { metresPerDegree } from './graticule.js';
 
 /** Seconds each camera move takes, and how long a shot holds after it. */
-export const FLIGHT_SECONDS = 3;
-export const HOLD_MS = 3000;
+export const FLIGHT_SECONDS = 2.2;
+export const HOLD_MS = 2600;
 
 /** The sample site the Louisiana flight outlines. */
 export const SAMPLE_SITE = Object.freeze({
@@ -66,6 +66,11 @@ export const FLIGHT_MANAGED_LAYERS = Object.freeze([
   'past-wayback',
 ]);
 
+/**
+ * A shot's `camera.lon/lat` is the place it shows: the player aims the
+ * camera at that point from `range` metres away at `heading` and `pitch`,
+ * so an oblique shot still ends centred on the place.
+ */
 const shot = (s) =>
   Object.freeze({ layers: [], ensureOn: [], outline: false, ...s });
 
@@ -150,7 +155,7 @@ export const GUIDED_FLIGHTS = Object.freeze([
         id: 'topography',
         camera: {
           lon: -91.23,
-          lat: 32.425,
+          lat: 32.43,
           range: 7_000,
           heading: 25,
           pitch: -32,
@@ -168,47 +173,50 @@ export const GUIDED_FLIGHTS = Object.freeze([
     label: msg('Africa – Ghana'),
     shots: Object.freeze([
       shot({
-        id: 'africa',
-        camera: { lon: 18, lat: 3, range: 10_500_000, heading: 0, pitch: -90 },
-        caption: msg('Africa from space, on Esri satellite imagery.'),
-      }),
-      shot({
-        id: 'west-africa',
-        camera: { lon: -1, lat: 6, range: 3_200_000, heading: 0, pitch: -88 },
-        caption: msg('West Africa and the Gulf of Guinea.'),
-        ensureOn: ['ref-places'],
-      }),
-      shot({
         id: 'ghana',
         camera: {
-          lon: -1.05,
-          lat: 7.9,
-          range: 950_000,
+          lon: -1.1,
+          lat: 7.6,
+          range: 1_700_000,
           heading: 0,
           pitch: -88,
         },
         caption: msg(
-          'Ghana, with country borders and place names from Esri’s world reference map.',
+          'Ghana in West Africa, with country borders and place names from Esri’s world reference map.',
         ),
         ensureOn: ['ref-places'],
       }),
       shot({
         id: 'accra',
         camera: {
-          lon: -0.19,
-          lat: 5.56,
-          range: 32_000,
-          heading: 0,
-          pitch: -65,
+          lon: -0.197,
+          lat: 5.556,
+          range: 20_000,
+          heading: 10,
+          pitch: -45,
         },
-        caption: msg('Accra, Ghana’s capital, on the Gulf of Guinea coast.'),
+        caption: msg(
+          'Accra, Ghana’s capital, on the Gulf of Guinea coast, at city scale on Esri imagery.',
+        ),
+        ensureOn: ['ref-places'],
+      }),
+      shot({
+        id: 'kumasi',
+        camera: {
+          lon: -1.624,
+          lat: 6.688,
+          range: 20_000,
+          heading: 0,
+          pitch: -45,
+        },
+        caption: msg('Kumasi, Ghana’s second city, in the Ashanti Region.'),
         ensureOn: ['ref-places'],
       }),
       shot({
         id: 'berekum',
         camera: {
-          lon: -2.58,
-          lat: 7.45,
+          lon: -2.586,
+          lat: 7.454,
           range: 11_000,
           heading: 0,
           pitch: -70,
@@ -226,8 +234,8 @@ export const GUIDED_FLIGHTS = Object.freeze([
       shot({
         id: 'berekum-topography',
         camera: {
-          lon: -2.58,
-          lat: 7.41,
+          lon: -2.586,
+          lat: 7.454,
           range: 14_000,
           heading: 20,
           pitch: -30,

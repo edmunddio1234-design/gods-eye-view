@@ -3279,10 +3279,6 @@
   "USDA soil map units across the sample site; click the ground to read the soil.": "Почвенные единицы USDA на примерном участке; щёлкните по земле, чтобы прочитать данные о почве.",
   "Topography: hillshade, USGS contours in feet and 3D terrain raised ×3 show how flat this land is.": "Рельеф: отмывка, горизонтали USGS в футах и 3D-рельеф с увеличением ×3 показывают, насколько ровна эта местность.",
   "Africa – Ghana": "Африка — Гана",
-  "Africa from space, on Esri satellite imagery.": "Африка из космоса на спутниковых снимках Esri.",
-  "West Africa and the Gulf of Guinea.": "Западная Африка и Гвинейский залив.",
-  "Ghana, with country borders and place names from Esri’s world reference map.": "Гана с государственными границами и названиями из мировой справочной карты Esri.",
-  "Accra, Ghana’s capital, on the Gulf of Guinea coast.": "Аккра, столица Ганы, на побережье Гвинейского залива.",
   "Berekum, Bono Region, with roads and 2024 land cover (red is built-up land). 2S Global research looked at how roads and land cover shape urban heat here.": "Берекум, область Боно, с дорогами и земным покровом 2024 года (красный — застройка). Исследование 2S Global изучало здесь, как дороги и земной покров влияют на городской перегрев.",
   "Read the research": "Читать исследование",
   "Berekum topography: Esri hillshade and global 3D terrain raised ×3 (US contour lines do not cover Ghana).": "Рельеф Берекума: отмывка Esri и глобальный 3D-рельеф с увеличением ×3 (горизонтали США не покрывают Гану).",
@@ -3422,5 +3418,9 @@
   "Open SoilGrids": "Открыть SoilGrids",
   "Ground height": "Высота земли",
   "Above mean sea level (EGM96), from the 3D terrain model, at {point}.": "Над средним уровнем моря (EGM96), по 3D-модели рельефа, точка {point}.",
-  "Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.": "Эллипсоидальная высота (WGS-84) по 3D-модели рельефа, точка {point}."
+  "Ellipsoidal (WGS-84) height from the 3D terrain model, at {point}.": "Эллипсоидальная высота (WGS-84) по 3D-модели рельефа, точка {point}.",
+  "Starting the guided flight...": "Запуск облёта...",
+  "Ghana in West Africa, with country borders and place names from Esri’s world reference map.": "Гана в Западной Африке с государственными границами и названиями из мировой справочной карты Esri.",
+  "Accra, Ghana’s capital, on the Gulf of Guinea coast, at city scale on Esri imagery.": "Аккра, столица Ганы, на побережье Гвинейского залива, в масштабе города на снимках Esri.",
+  "Kumasi, Ghana’s second city, in the Ashanti Region.": "Кумаси, второй по величине город Ганы, в области Ашанти."
 }

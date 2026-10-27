@@ -21,12 +21,12 @@ import { SURVEY_OVERLAYS } from './overlays.js';
 const known = (id) =>
   Boolean(surveyLayer(id)) || SURVEY_OVERLAYS.some((o) => o.id === id);
 
-test('two flights of six shots each, with honest one-line captions', () => {
+test('two short flights, with honest one-line captions', () => {
   assert.deepEqual(
     GUIDED_FLIGHTS.map((f) => [f.id, f.shots.length]),
     [
       ['louisiana', 6],
-      ['ghana', 6],
+      ['ghana', 5],
     ],
   );
   for (const flight of GUIDED_FLIGHTS)
@@ -68,14 +68,7 @@ test('the Ghana flight uses worldwide layers and links the research at Berekum',
   const gh = flightById('ghana');
   assert.deepEqual(
     gh.shots.map((s) => s.id),
-    [
-      'africa',
-      'west-africa',
-      'ghana',
-      'accra',
-      'berekum',
-      'berekum-topography',
-    ],
+    ['ghana', 'accra', 'kumasi', 'berekum', 'berekum-topography'],
   );
   for (const shot of gh.shots)
     for (const id of shot.layers)
@@ -84,15 +77,28 @@ test('the Ghana flight uses worldwide layers and links the research at Berekum',
         'us',
         `${shot.id} uses only worldwide layers (${id})`,
       );
-  const berekum = gh.shots[4];
+  const berekum = gh.shots[3];
   assert.deepEqual(berekum.layers, ['ref-roads', 'world-landcover']);
   assert.equal(
     berekum.link.href,
     'https://2s-global-demo.vercel.app/news-insights/what-roads-reveal-about-rising-urban-heat-in-ghana/',
   );
-  assert.ok(gh.shots[2].ensureOn.includes('ref-places'));
-  assert.ok(Math.abs(gh.shots[3].camera.lat - 5.56) < 0.01);
-  assert.ok(Math.abs(berekum.camera.lon + 2.58) < 0.01);
+  assert.ok(gh.shots[0].ensureOn.includes('ref-places'));
+  // City-level shots: Accra and Kumasi close up and oblique.
+  for (const [shot, lat, lon] of [
+    [gh.shots[1], 5.556, -0.197],
+    [gh.shots[2], 6.688, -1.624],
+  ]) {
+    // The camera aims at the place itself (see shot() in guidedFlights.js).
+    assert.ok(Math.abs(shot.camera.lat - lat) < 0.005, shot.id);
+    assert.ok(Math.abs(shot.camera.lon - lon) < 0.005, shot.id);
+    assert.ok(shot.camera.range >= 15_000 && shot.camera.range <= 25_000);
+    assert.ok(shot.camera.pitch >= -50 && shot.camera.pitch <= -40);
+  }
+  for (const shot of gh.shots.slice(3)) {
+    assert.ok(Math.abs(shot.camera.lon + 2.586) < 0.005, shot.id);
+    assert.ok(Math.abs(shot.camera.lat - 7.454) < 0.005, shot.id);
+  }
 });
 
 test('wording stays neutral', () => {
@@ -127,8 +133,11 @@ test('stepping stays inside the flight; timings are short and immediate', () => 
   assert.equal(stepShot(la, 2, 1), 3);
   assert.ok(isLastShot(la, 5) && !isLastShot(la, 4));
   assert.equal(flightById('nope').id, 'louisiana');
-  assert.ok(FLIGHT_SECONDS >= 2.5 && FLIGHT_SECONDS <= 3.5);
-  assert.ok(HOLD_MS >= 2500 && HOLD_MS <= 3500);
+  assert.ok(FLIGHT_SECONDS >= 2 && FLIGHT_SECONDS <= 2.5);
+  assert.ok(HOLD_MS >= 2500 && HOLD_MS <= 3000);
+  // Every tour finishes well under 40 seconds.
+  for (const flight of GUIDED_FLIGHTS)
+    assert.ok(flight.shots.length * (FLIGHT_SECONDS + HOLD_MS / 1000) < 40);
 });
 
 test('?tour= picks a flight from the query or the hash', () => {

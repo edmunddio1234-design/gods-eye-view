@@ -1292,8 +1292,28 @@ export function createSurveyPanel({
   listen(splitInput, 'input', renderCompare);
 
   // ---- guided flights --------------------------------------------------
-  const player = createFlightPlayer({ viewer, layers, setLayer, documentRef });
+  const player = createFlightPlayer({
+    viewer,
+    layers,
+    setLayer,
+    documentRef,
+    // Flights drape layers on the globe: leave Google 3D for Esri imagery.
+    onPlay: () => {
+      const stack = mapStackController?.getActiveId?.();
+      if (
+        stack !== SURVEY_MAP_STACK &&
+        !SURVEY_GLOBE_STACKS.includes(stack) &&
+        mapStackController?.isStackAvailable?.(SURVEY_MAP_STACK)
+      )
+        void styleManager?.setMapStack?.(SURVEY_MAP_STACK);
+    },
+  });
   disposers.push(() => player.destroy());
+  disposers.push(
+    player.subscribe(({ flightId }) => {
+      if (flightSelect.value !== flightId) flightSelect.value = flightId;
+    }),
+  );
   // Play starts the first camera move inside this click handler.
   listen(flightPlayButton, 'click', () => player.play(flightSelect.value));
 

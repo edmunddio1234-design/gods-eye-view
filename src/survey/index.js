@@ -16,8 +16,26 @@ import { createSurveyScene } from './surveyScene.js';
 import { sampleTerrainHeights } from './terrainSampler.js';
 import { isSurveyRequested } from './policy.js';
 import { requestedTour } from './guidedFlights.js';
+import { announceNavigationAuthority } from '../navigationPolicy.js';
 
 export const SURVEY_TOGGLE_ID = 'site-survey-toggle';
+
+/** Longest a URL tour waits for a start-up camera move to finish. */
+const TOUR_SETTLE_MS = 2500;
+
+/** Resolves once the camera has no flight running, or after `maxMs`. */
+function cameraIdle(viewer, maxMs) {
+  const until = performance.now() + maxMs;
+  return new Promise((resolve) => {
+    const check = () => {
+      const flying = Boolean(viewer.camera?._currentFlight);
+      if (!flying || performance.now() >= until || viewer.isDestroyed?.())
+        resolve();
+      else setTimeout(check, 50);
+    };
+    check();
+  });
+}
 
 /**
  * @param {object} deps
@@ -100,19 +118,26 @@ export function initSiteSurvey({
   // may turn layers on) has been restored. `?tour=<id>` also opens it and
   // starts that guided flight straight away.
   const tour = requestedTour(location);
+  // A tour owns the opening camera: a shared view in the address (#v=2…)
+  // still restores its map and layers, but not its camera flight, which
+  // would otherwise land on top of the tour's first shot.
+  if (tour)
+    announceNavigationAuthority('site-survey-tour', {
+      cancelPendingSelection: false,
+    });
   if (isSurveyRequested(location) || tour)
     void Promise.resolve(ready)
       .catch(() => {})
       .then(() => {
         if (destroyed) return null;
-        if (tour && !mode.active) {
-          // Fly as soon as the panel is up; the mode's own changes (layer
-          // guard, map stack) finish alongside.
-          const started = mode.setActive(true);
-          panel.player.play(tour);
-          return started;
-        }
-        return mode.setActive(true);
+        const entered = mode.setActive(true);
+        if (!tour) return entered;
+        // Start-up has settled (the opening link is restored): fly as soon as
+        // no other camera move is running, without waiting on the map switch
+        // to Esri imagery, which finishes alongside the first shot.
+        return cameraIdle(viewer, TOUR_SETTLE_MS).then(() => {
+          if (!destroyed) panel.player.play(tour);
+        });
       });
 
   const api = {

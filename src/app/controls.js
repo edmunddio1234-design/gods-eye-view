@@ -3,6 +3,7 @@ import { StyleManager } from '../ui/composition.js';
 import { flyToAustin } from '../camera.js';
 import { initCockpitCloudEffects } from '../cockpitCloudEffects.js';
 import { t } from '../i18n/index.js';
+import { requestedTour } from '../survey/guidedFlights.js';
 
 /**
  * Construct the existing controls and camera presentation. `initialShareCode`
@@ -47,8 +48,11 @@ export function createApplicationControls({
   });
   defer(() => cockpitCloudEffects?.destroy());
 
-  // If no share link state, do default fly-to Austin
-  if (!styleManager.hasShareState) {
+  // If no share link state, do default fly-to Austin — unless the address
+  // asks for a Site Survey guided flight, which takes the camera itself.
+  if (requestedTour(globalThis.location)) {
+    loaderStatus.textContent = t('Starting the guided flight...');
+  } else if (!styleManager.hasShareState) {
     loaderStatus.textContent = t('Flying to Austin, TX...');
     defer(flyToAustin(viewer));
   } else {

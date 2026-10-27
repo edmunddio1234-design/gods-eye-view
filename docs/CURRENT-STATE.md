@@ -150,10 +150,14 @@ Wayback with a split compare. `surveyLayers.js` stacks them in
 everything turns off when it closes. Clicks (`surveyClicks.js`, only while
 the pointer is free) show stations, EPA sites, SSURGO soils (Soil Data Access,
 browser POST), SoilGrids soils or the ground height in `infoCard.js`.
-`guidedFlights.js` holds the Louisiana and Africa – Ghana flights (six shots,
-3 s flight, 3 s hold); `flightPlayer.js` starts the camera in the Play click
+`guidedFlights.js` holds the Louisiana (six shots) and Africa – Ghana (five
+shots, Accra and Kumasi at city scale) flights, 2.2 s flight and 2.6 s hold; `flightPlayer.js` starts the camera in the Play click
 and records `metrics.flightCalledMs`/`firstMotionMs`; `?tour=louisiana|ghana`
-opens the survey and plays. Every source is keyless and CORS-enabled, so
+opens the survey and plays once the opening view is restored; it also skips
+the default Austin fly-in (`src/app/controls.js`), whose late `flyTo` used to
+cancel the first shot. A cancel not preceded by pointer, wheel or touch input
+on the globe re-flies the shot once; survey mode also moves a Google 3D view
+that settles after it opened to Esri imagery. Every source is keyless and CORS-enabled, so
 `vite preview` on a public host needs no server route for any of it.
 
 ## God's Eye View in conversations — October 2, 2026

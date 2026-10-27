@@ -10,10 +10,21 @@
  * `metrics` records, for the last Play, the time from the click to the
  * camera flight being started (`flightCalledMs`, in the click handler
  * itself) and to the first rendered frame in which the camera had moved
- * (`firstMotionMs`, which is one frame time on the viewer's GPU).
+ * (`firstMotionMs`, which is one frame time on the viewer's GPU), and a
+ * log of each shot flown (`shots`: start, arrival, cancels and retries).
+ *
+ * A shot's flight cancelled by anything other than the person (a start-up
+ * camera move, a view restore, a framing page) is flown again, a few times
+ * at most; one cancelled by a touch on the globe stops the flight there.
  */
+
+/** Times a shot is flown again after a cancel nobody asked for. */
+const MAX_RETRIES = 3;
+/** A cancel this soon after a touch on the globe is the person's. */
+const USER_CANCEL_MS = 1500;
 import * as Cesium from 'cesium';
 import { t } from '../i18n/index.js';
+import { announceNavigationAuthority } from '../navigationPolicy.js';
 import {
   FLIGHT_SECONDS,
   GUIDED_FLIGHTS,
@@ -32,12 +43,14 @@ export const FLIGHT_BAR_ID = 'site-survey-flight-bar';
  * @param {Cesium.Viewer} deps.viewer
  * @param {ReturnType<import('./surveyLayers.js').createSurveyLayers>} deps.layers
  * @param {(id:string, on:boolean) => void} deps.setLayer turns a layer on/off and keeps the panel in step
+ * @param {() => void} [deps.onPlay] called as a flight starts (moves the map to Esri imagery)
  * @param {Document} [deps.documentRef]
  */
 export function createFlightPlayer({
   viewer,
   layers,
   setLayer,
+  onPlay = null,
   documentRef = document,
 }) {
   const state = {
@@ -50,8 +63,22 @@ export function createFlightPlayer({
     flightCalledMs: null,
     firstMotionMs: null,
     shotsStarted: 0,
+    shots: [],
   };
   let holdTimer = null;
+  let layerTimer = null;
+  let removeLayerHook = null;
+  let lastUserInput = -Infinity;
+  // Retries of the current shot, and whether its flight has landed.
+  let retries = 0;
+  let arrived = false;
+  const canvas = viewer.scene.canvas;
+  const onUserInput = () => {
+    lastUserInput = performance.now();
+  };
+  const INPUT_EVENTS = ['pointerdown', 'wheel', 'touchstart'];
+  for (const type of INPUT_EVENTS)
+    canvas.addEventListener(type, onUserInput, { passive: true });
   let motionFrame = null;
   let destroyed = false;
   const listeners = new Set();
@@ -167,16 +194,64 @@ export function createFlightPlayer({
     layers.setOutline(shot.outline ? SAMPLE_SITE_OUTLINE : null);
   }
 
-  function flyTo(index) {
+  /**
+   * The shot's look-at point: the named place, at the ground height the
+   * globe already knows there (raised like the terrain), else sea level.
+   */
+  function lookAtPoint({ lon, lat }) {
+    const carto = Cesium.Cartographic.fromDegrees(lon, lat);
+    let height = viewer.scene.globe?.getHeight?.(carto);
+    if (!Number.isFinite(height)) height = 0;
+    return Cesium.Cartesian3.fromDegrees(lon, lat, height);
+  }
+
+  function clearLayerTimers() {
+    clearTimeout(layerTimer);
+    layerTimer = null;
+    removeLayerHook?.();
+    removeLayerHook = null;
+  }
+
+  /** Turn the shot's layers on just after the first frame of the move. */
+  function applyLayersSoon(shot, index) {
+    clearLayerTimers();
+    const run = () => {
+      clearLayerTimers();
+      if (!destroyed && state.index === index) applyLayers(shot);
+    };
+    removeLayerHook = viewer.scene.postRender.addEventListener(run);
+    layerTimer = setTimeout(run, 50);
+  }
+
+  function flyTo(index, { retry = false } = {}) {
     clearTimeout(holdTimer);
     holdTimer = null;
+    if (!retry) retries = 0;
+    arrived = false;
     state.index = index;
     const shot = state.flight.shots[index];
-    const { lon, lat, range, heading, pitch } = shot.camera;
+    const { range, heading, pitch } = shot.camera;
+    const log = {
+      flightId: state.flight.id,
+      index,
+      id: shot.id,
+      retry,
+      startMs: Math.round(performance.now()),
+      endMs: null,
+      outcome: 'flying',
+    };
+    metrics.shots.push(log);
+    if (metrics.shots.length > 60) metrics.shots.shift();
+    // The tour owns the camera now: any deferred move (a shared view still
+    // waiting to restore, a pending search) yields to it.
+    announceNavigationAuthority('site-survey-tour', {
+      cancelPendingSelection: false,
+    });
     viewer.camera.cancelFlight();
-    // Camera first, layers right after: the move must never wait on them.
+    // Camera first, layers just after: the move never waits on them. The
+    // camera looks straight at the place, whatever the pitch.
     viewer.camera.flyToBoundingSphere(
-      new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(lon, lat), 0),
+      new Cesium.BoundingSphere(lookAtPoint(shot.camera), 0),
       {
         duration: FLIGHT_SECONDS,
         offset: new Cesium.HeadingPitchRange(
@@ -185,15 +260,29 @@ export function createFlightPlayer({
           range,
         ),
         complete: () => {
+          log.endMs = Math.round(performance.now());
+          log.outcome = 'arrived';
           if (destroyed || state.index !== index) return;
+          arrived = true;
           if (state.playing) scheduleNext();
         },
         cancel: () => {
-          // Someone grabbed the globe: stop advancing, keep the caption.
-          if (state.index === index && state.playing) {
-            state.playing = false;
-            renderBar();
+          log.endMs = Math.round(performance.now());
+          log.outcome = 'cancelled';
+          if (destroyed || state.index !== index || !state.playing) return;
+          const byUser = performance.now() - lastUserInput < USER_CANCEL_MS;
+          if (!byUser && retries < MAX_RETRIES) {
+            retries += 1;
+            // Let whatever cancelled it finish its own frame first.
+            setTimeout(() => {
+              if (!destroyed && state.playing && state.index === index)
+                flyTo(index, { retry: true });
+            }, 0);
+            return;
           }
+          // Someone grabbed the globe: stop advancing, keep the caption.
+          state.playing = false;
+          renderBar();
         },
       },
     );
@@ -201,8 +290,8 @@ export function createFlightPlayer({
     if (metrics.flightCalledMs === null && metrics.playAt !== null)
       metrics.flightCalledMs = Math.round(performance.now() - metrics.playAt);
     viewer.scene.requestRender();
-    applyLayers(shot);
     renderBar();
+    applyLayersSoon(shot, index);
   }
 
   function scheduleNext() {
@@ -231,16 +320,26 @@ export function createFlightPlayer({
       state.index = -1;
     }
     state.playing = true;
+    // A shot paused before it landed is flown again; a finished flight
+    // starts over.
     const start =
-      state.index < 0 || isLastShot(state.flight, state.index)
+      state.index < 0
         ? 0
-        : state.index + 1;
+        : !arrived
+          ? state.index
+          : isLastShot(state.flight, state.index)
+            ? 0
+            : state.index + 1;
     flyTo(start);
+    // The map switch to Esri imagery runs alongside the first move.
+    onPlay?.();
   }
   function pause() {
     state.playing = false;
     clearTimeout(holdTimer);
     holdTimer = null;
+    // Stop where the camera is now rather than finishing the move.
+    viewer.camera.cancelFlight();
     renderBar();
   }
   function step(delta) {
@@ -255,10 +354,10 @@ export function createFlightPlayer({
     renderBar();
   }
 
-  const onPlay = () => (state.playing ? pause() : play());
+  const onPlayButton = () => (state.playing ? pause() : play());
   const onPrev = () => step(-1);
   const onNext = () => step(1);
-  playButton.addEventListener('click', onPlay);
+  playButton.addEventListener('click', onPlayButton);
   prevButton.addEventListener('click', onPrev);
   nextButton.addEventListener('click', onNext);
   closeButton.addEventListener('click', stop);
@@ -293,7 +392,10 @@ export function createFlightPlayer({
       stop();
       destroyed = true;
       if (motionFrame) cancelAnimationFrame(motionFrame);
-      playButton.removeEventListener('click', onPlay);
+      clearLayerTimers();
+      for (const type of INPUT_EVENTS)
+        canvas.removeEventListener(type, onUserInput);
+      playButton.removeEventListener('click', onPlayButton);
       prevButton.removeEventListener('click', onPrev);
       nextButton.removeEventListener('click', onNext);
       closeButton.removeEventListener('click', stop);
