@@ -1,0 +1,357 @@
+/* ── Site Survey ─────────────────────────────────
+   The survey toggle in the top-centre actions, the survey panel, and what
+   survey mode hides. src/survey/ owns the behaviour. */
+
+#top-center-actions #site-survey-toggle {
+  width: auto;
+  padding: 0 12px 0 10px;
+  gap: 6px;
+  border-radius: 18px;
+  font: 600 10px/1 var(--font-mono);
+  letter-spacing: 1.2px;
+}
+#top-center-actions #site-survey-toggle[aria-pressed='true'] {
+  border-color: #5dff9f;
+  color: #5dff9f;
+  box-shadow: 0 0 14px rgba(93, 255, 159, 0.2);
+}
+
+/* Survey mode keeps the screen to the land: the tactical style readout,
+   the right rail (display, CCTV, street level, weather, context) and the
+   rows of the layers survey mode keeps off. The layer guard refuses those
+   layers anyway; hiding the rows says so before anyone tries. */
+body.gev-site-survey #style-indicator,
+body.gev-site-survey #right-context-rail,
+body.gev-site-survey #cctv-sync-chip,
+body.gev-site-survey #cctv-panel,
+body.gev-site-survey #cockpit-entry,
+body.gev-site-survey #military-awareness-panel,
+body.gev-site-survey #military-awareness-direction-overlay {
+  display: none !important;
+}
+body.gev-site-survey
+  :is(
+    [data-layer-id='flights'],
+    [data-layer-id='military'],
+    [data-layer-id='military-awareness'],
+    [data-layer-id='military-installations'],
+    [data-layer-id='cctv'],
+    [data-layer-id='alpr-cameras'],
+    [data-layer-id='ais-live-vessels'],
+    [data-layer-id='satellites'],
+    [data-layer-id='gnss-integrity'],
+    [data-layer-id='s2-ghostmaps'],
+    [data-layer-id='radio'],
+    [data-layer-id='rocket-launches'],
+    [data-layer-id='local-adsb'],
+    [data-layer-id='bhote-koshi-2026'],
+    [data-layer-id='bhote-koshi-locator']
+  ) {
+  display: none !important;
+}
+
+.survey-panel {
+  --survey-accent: #5dff9f;
+  position: fixed;
+  z-index: 115;
+  top: 84px;
+  right: var(--right-rail-x, 52px);
+  width: 344px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 14px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-hover);
+  border-radius: var(--panel-radius, 16px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--text-primary);
+  font: 12px/1.45 var(--font-sans);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.survey-panel[hidden] {
+  display: none;
+}
+.survey-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.survey-header h2 {
+  flex: 1;
+  margin: 0;
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: 2px;
+  color: var(--survey-accent);
+}
+.survey-close {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--glass-border-hover);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.survey-close:hover {
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+.survey-units .gev-segment[aria-checked='true'] {
+  background: var(--survey-accent);
+}
+.survey-section {
+  border-top: 1px solid var(--glass-border);
+  padding: 8px 0 4px;
+}
+.survey-section > summary {
+  cursor: pointer;
+  font: 600 10px/1.6 var(--font-mono);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  list-style-position: inside;
+}
+.survey-section[open] > summary {
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.survey-section h3 {
+  margin: 10px 0 4px;
+  font: 600 10px/1.4 var(--font-mono);
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+.survey-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.survey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.survey-button.active,
+.survey-button[aria-pressed='true'] {
+  color: #000;
+  background: var(--survey-accent);
+  border-color: var(--survey-accent);
+}
+.survey-primary:not(.active) {
+  border-color: rgba(93, 255, 159, 0.55);
+  color: var(--survey-accent);
+}
+.survey-field {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 150px);
+  align-items: center;
+  gap: 8px;
+}
+.survey-field label {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.survey-field-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.survey-field-input > .gev-field,
+.survey-field-input > input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.survey-text {
+  width: 100%;
+}
+.survey-unit {
+  color: var(--text-dim);
+  font: 10px var(--font-mono);
+  min-width: 24px;
+}
+.survey-readout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 2px 0 0;
+  font-size: 11.5px;
+}
+.survey-readout dt {
+  color: var(--text-secondary);
+}
+.survey-readout dd {
+  margin: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.survey-hint,
+.survey-status,
+.survey-note,
+.survey-credit {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.survey-hint:empty,
+.survey-status:empty {
+  display: none;
+}
+.survey-credit {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.survey-notice {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-left: 3px solid #ffb547;
+  background: rgba(255, 181, 71, 0.1);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.survey-notice[hidden] {
+  display: none;
+}
+.survey-warning {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 3px solid #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.survey-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.survey-overlay {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+.survey-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.survey-check input {
+  accent-color: var(--survey-accent);
+}
+.survey-legend {
+  list-style: none;
+  margin: 0 0 0 22px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+.survey-legend[hidden] {
+  display: none;
+}
+.survey-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.survey-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.survey-swatch--outline {
+  background: transparent;
+  border-width: 2px;
+}
+.survey-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+.survey-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+}
+.survey-dash {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+.survey-dot + span,
+.survey-dash + span {
+  margin-right: 6px;
+}
+.survey-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px dashed var(--glass-border-hover);
+  border-radius: 8px;
+}
+.survey-custom[hidden],
+.survey-field[hidden] {
+  display: none;
+}
+.survey-chart:empty {
+  display: none;
+}
+.survey-profile-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.survey-profile-chart .grid {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
+}
+.survey-profile-chart .tick,
+.survey-profile-chart .unit {
+  fill: var(--text-secondary);
+  font: 9px var(--font-mono);
+}
+.survey-profile-chart .line {
+  fill: none;
+  stroke: #ff4fd8;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 720px) {
+  .survey-panel {
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 96px;
+    width: auto;
+    max-height: 52vh;
+  }
+  #top-center-actions #site-survey-toggle .site-survey-toggle-label {
+    display: none;
+  }
+  #top-center-actions #site-survey-toggle {
+    width: 36px;
+    padding: 0;
+    border-radius: 50%;
+  }
+}

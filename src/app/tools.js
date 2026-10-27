@@ -1,6 +1,7 @@
 import { SceneDirector } from '../scenes/director.js';
 import { initAnnotations } from '../annotations/index.js';
 import { initDrawTool } from '../annotations/drawTool.js';
+import { initSiteSurvey } from '../survey/index.js';
 import { initGeoFileImport } from '../ui/geoFileImport.js';
 import { initImageryBoxTool } from '../ui/imageryBoxTool.js';
 import { createRecentImageryPanel } from '../ui/recentImagery.js';
@@ -58,6 +59,17 @@ export function createApplicationTools({
   // lifetime rather than to whoever last pressed the button.
   const drawTool = initDrawTool({ viewer, annotations });
   defer(() => drawTool?.destroy());
+  // SITE SURVEY: the land-survey workspace (src/survey/). It claims the
+  // pointer while drawing and hides surveillance layers while on, so the
+  // application lifetime turns it off and removes it.
+  const siteSurvey = initSiteSurvey({
+    viewer,
+    styleManager,
+    dataManager,
+    mapStackController,
+    ready: styleManager.initialRestorePromise,
+  });
+  defer(() => siteSurvey?.destroy());
   // DISPLAY ▸ Import: the person's own GeoJSON/KML/KMZ/GPX files, each its
   // own data source. They live for the page session, so the application
   // lifetime removes them and the drop listeners on the viewer container.

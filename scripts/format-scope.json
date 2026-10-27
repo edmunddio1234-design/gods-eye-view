@@ -1117,5 +1117,13 @@
   "src/testSupport/shareViewFixtures.mjs",
   "src/ui/shareLinks.test.mjs",
   "src/ui/shareButton.test.mjs",
-  "src/share/shareLinkPath.test.mjs"
+  "src/share/shareLinkPath.test.mjs",
+  "src/survey/exports.test.mjs",
+  "src/survey/flightPlan.test.mjs",
+  "src/survey/geodesy.test.mjs",
+  "src/survey/policy.test.mjs",
+  "src/survey/terrainStats.test.mjs",
+  "src/survey/units.test.mjs",
+  "server/providers/surveyWms.test.mjs",
+  "src/ui/styles/survey.css"
 ]
