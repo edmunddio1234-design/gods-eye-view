@@ -766,8 +766,72 @@ export function createSurveyPanel({
     planSection.details,
     reportSection.details,
   );
+  // "More below": the panel scrolls, so a fade and a button sit on its bottom
+  // edge whenever there is more underneath, and go away at the bottom.
+  const moreButton = el('button', {
+    type: 'button',
+    class: 'survey-more',
+    'aria-label': t('Scroll down for more options'),
+    hidden: true,
+  });
+  moreButton.append(
+    el('span', { class: 'survey-more-label', text: t('More below') }),
+    el('span', {
+      class: 'survey-more-arrow',
+      'aria-hidden': 'true',
+      text: '↓',
+    }),
+  );
+  panel.append(moreButton);
+  const updateMore = () => {
+    const rest = panel.scrollHeight - panel.clientHeight - panel.scrollTop;
+    moreButton.hidden = panel.hidden || rest <= 24;
+  };
+  listen(panel, 'scroll', updateMore, { passive: true });
+  listen(panel, 'toggle', () => requestAnimationFrame(updateMore), true);
+  listen(globalThis, 'resize', updateMore);
+  // The panel's own smooth scroll can be cancelled by the press that clicked
+  // it, so the glide is driven here, frame by frame.
+  let glide = 0;
+  listen(moreButton, 'click', () => {
+    cancelAnimationFrame(glide);
+    const from = panel.scrollTop;
+    const to = Math.min(
+      panel.scrollHeight - panel.clientHeight,
+      from + Math.round(panel.clientHeight * 0.7),
+    );
+    const reduce = globalThis.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    )?.matches;
+    if (reduce || to <= from) {
+      panel.scrollTop = to;
+      return;
+    }
+    const start = performance.now();
+    const MS = 420;
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / MS);
+      const eased = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      panel.scrollTop = from + (to - from) * eased;
+      if (k < 1) glide = requestAnimationFrame(step);
+    };
+    glide = requestAnimationFrame(step);
+  });
+  disposers.push(() => cancelAnimationFrame(glide));
+  if (typeof ResizeObserver === 'function') {
+    const watch = new ResizeObserver(() => updateMore());
+    watch.observe(panel);
+    for (const child of panel.children) watch.observe(child);
+    disposers.push(() => watch.disconnect());
+  }
+  if (typeof MutationObserver === 'function') {
+    const shown = new MutationObserver(() => requestAnimationFrame(updateMore));
+    shown.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+    disposers.push(() => shown.disconnect());
+  }
   documentRef.body.appendChild(panel);
   disposers.push(() => panel.remove());
+  requestAnimationFrame(updateMore);
 
   // ---- rendering -------------------------------------------------------
   const units = () => state.units;

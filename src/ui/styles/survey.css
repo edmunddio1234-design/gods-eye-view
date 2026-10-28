@@ -73,6 +73,73 @@ body.gev-site-survey
 .survey-panel[hidden] {
   display: none;
 }
+/* "More below": a fade and a button on the panel's bottom edge while more
+   options sit underneath. */
+.survey-more {
+  position: sticky;
+  bottom: -14px;
+  z-index: 2;
+  display: flex;
+  width: calc(100% + 28px);
+  margin: 6px -14px -14px;
+  padding: 34px 14px 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0 0 var(--panel-radius, 16px) var(--panel-radius, 16px);
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 13, 16, 0) 0%,
+    rgba(10, 13, 16, 0.94) 42%,
+    rgba(10, 13, 16, 0.98) 100%
+  );
+  color: var(--survey-accent);
+  font: 600 10.5px/1 var(--font-mono);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.survey-more[hidden] {
+  display: none;
+}
+.survey-more-label {
+  padding: 6px 10px;
+  border: 1px solid rgba(93, 255, 159, 0.35);
+  border-radius: 8px;
+  background: rgba(6, 10, 14, 0.96);
+}
+.survey-more:hover .survey-more-arrow,
+.survey-more:focus-visible .survey-more-arrow {
+  border-color: var(--survey-accent);
+}
+.survey-more:focus-visible {
+  outline: none;
+}
+.survey-more-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(93, 255, 159, 0.45);
+  border-radius: 50%;
+  font-size: 13px;
+  animation: survey-more-nudge 1.6s ease-in-out infinite;
+}
+@keyframes survey-more-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .survey-more-arrow {
+    animation: none;
+  }
+}
 .survey-header {
   display: flex;
   align-items: center;
@@ -541,6 +608,15 @@ body.gev-site-survey
    a flight and comes back when the flight closes. */
 #gev-voice-control {
   transition: opacity 0.25s ease;
+}
+/* Phones: the voice card would sit on the survey panel's bottom edge (and
+   its "More below" cue) while the panel is open, so it steps aside then. */
+@media (max-width: 720px) {
+  body.gev-site-survey #gev-voice-control {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
 }
 body.survey-flight-showing #gev-voice-control {
   opacity: 0;
